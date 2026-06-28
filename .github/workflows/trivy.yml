@@ -1,3 +1,7 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
 name: trivy
 
 on:
@@ -13,75 +17,82 @@ permissions:
 
 jobs:
   build:
-    name: Build, Scan, and Generate SBOM
-    runs-on: ubuntu-latest
-
     permissions:
       contents: read
       security-events: write
       actions: read
+    name: Build
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker image
+      - name: Build an image from Dockerfile
         run: |
-          docker build -t my-app:${{ github.sha }} .
+          docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
 
-      ####################################################
-      # Generate CycloneDX SBOM
-      ####################################################
-
-      - name: Generate CycloneDX SBOM
-        uses: aquasecurity/trivy-action@0.33.1
+      # Scan 1: image vulnerabilities → Security tab
+      - name: Trivy — image vulnerability scan
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
-          image-ref: my-app:${{ github.sha }}
-          format: cyclonedx
-          output: sbom.cdx.json
+          scan-type: 'image'
+          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          severity: 'CRITICAL,HIGH'
 
-      ####################################################
-      # Human-readable vulnerability report
-      ####################################################
-
-      - name: Scan image for vulnerabilities
-        uses: aquasecurity/trivy-action@0.33.1
-        with:
-          image-ref: my-app:${{ github.sha }}
-          format: table
-          output: trivy-report.txt
-          severity: CRITICAL,HIGH
-
-      ####################################################
-      # SARIF upload
-      ####################################################
-
-      - name: Generate SARIF report
-        uses: aquasecurity/trivy-action@0.33.1
-        with:
-          image-ref: my-app:${{ github.sha }}
-          format: template
-          template: "@/contrib/sarif.tpl"
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-
-      - name: Upload SARIF
+      - name: Upload image scan results
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results.sarif
+          sarif_file: 'trivy-image.sarif'
+          category: 'trivy-image'
 
-      ####################################################
-      # Save reports as workflow artifacts
-      ####################################################
+      # Scan 2: generate CycloneDX SBOM from the image
+      - name: Trivy — generate SBOM
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          scan-type: 'image'
+          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+          format: 'cyclonedx'
+          output: 'sbom.cdx.json'
 
-      - name: Upload SBOM
+      - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CycloneDX-SBOM
+          name: sbom-${{ github.sha }}
           path: sbom.cdx.json
+          retention-days: 90
 
-      - name: Upload Trivy Report
-        uses: actions/upload-artifact@v4
+      # Scan 3: scan the SBOM for CVEs → Security tab
+      - name: Trivy — SBOM vulnerability scan
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
-          name: Trivy-Vulnerability-Report
-          path: trivy-report.txt
+          scan-type: 'sbom'
+          image-ref: 'sbom.cdx.json'
+          format: 'sarif'
+          output: 'trivy-sbom.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload SBOM scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-sbom.sarif'
+          category: 'trivy-sbom'
+
+      # Scan 4: repo filesystem / IaC / secrets
+      - name: Trivy — filesystem scan
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret,misconfig'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload filesystem scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
