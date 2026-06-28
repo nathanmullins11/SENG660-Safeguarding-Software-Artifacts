@@ -74,12 +74,14 @@ jobs:
 
       - name: Push image to GHCR
         run: |
-          docker tag docker.io/my-organization/my-app:${{ github.sha }} ghcr.io/${{ github.repository }}:${{ github.sha }}
-          docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker tag docker.io/my-organization/my-app:${{ github.sha }} ghcr.io/${REPO}:${{ github.sha }}
+          docker push ghcr.io/${REPO}:${{ github.sha }}
 
       - name: Generate SHA-256 hash of image
         run: |
-          docker inspect --format='{{index .Id}}' ghcr.io/${{ github.repository }}:${{ github.sha }} > image.sha256
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker inspect --format='{{index .Id}}' ghcr.io/${REPO}:${{ github.sha }} > image.sha256
           cat image.sha256
 
       - name: Upload image hash artifact
