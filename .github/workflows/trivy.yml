@@ -67,7 +67,7 @@ jobs:
         uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
           scan-type: 'sbom'
-          image-ref: 'sbom.cdx.json'
+          scan-ref: 'sbom.cdx.json'
           format: 'github'
           output: 'dependency-snapshot.json'
           github-pat: ${{ secrets.GITHUB_TOKEN }}
