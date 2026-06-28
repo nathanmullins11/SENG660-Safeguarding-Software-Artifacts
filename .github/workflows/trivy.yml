@@ -62,9 +62,9 @@ jobs:
           path: sbom.cdx.json
           retention-days: 90
 
-      # Scan 3: submit SBOM packages to GitHub dependency graph → Dependabot alerts
+      # Scan 3: submit SBOM to GitHub dependency graph → Dependabot alerts
       - name: Trivy — submit SBOM to GitHub dependency graph
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'sbom'
           scan-ref: 'sbom.cdx.json'
