@@ -64,21 +64,22 @@ jobs:
           path: sbom.cdx.json
           retention-days: 90
 
-      # Scan 3: scan the SBOM for CVEs → Security tab
+      # Scan 3: scan the SBOM for CVEs → output as JSON, upload as artifact
       - name: Trivy — SBOM vulnerability scan
         uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
           scan-type: 'sbom'
           image-ref: 'sbom.cdx.json'
-          format: 'sarif'
-          output: 'trivy-sbom.sarif'
+          format: 'json'
+          output: 'trivy-sbom.json'
           severity: 'CRITICAL,HIGH'
 
       - name: Upload SBOM scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: 'trivy-sbom.sarif'
-          category: 'trivy-sbom'
+          name: trivy-sbom-results-${{ github.sha }}
+          path: trivy-sbom.json
+          retention-days: 90
 
       # Scan 4: repo filesystem / IaC / secrets
       - name: Trivy — filesystem scan
