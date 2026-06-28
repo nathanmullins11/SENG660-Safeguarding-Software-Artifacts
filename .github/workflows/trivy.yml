@@ -1,0 +1,92 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+name: trivy
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '21 21 * * 1'
+permissions:
+  contents: read
+jobs:
+  build:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      packages: write
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build an image from Dockerfile
+        run: |
+          docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+          format: 'template'
+          template: '@/contrib/sarif.tpl'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          scan-type: 'image'
+          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
+          format: 'table'
+          output: 'sbom.txt'
+
+      - name: Generate SHA-256 hash of SBOM
+        run: |
+          sha256sum sbom.txt > sbom.txt.sha256
+          cat sbom.txt.sha256
+
+      - name: Upload SBOM and hash artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: |
+            sbom.txt
+            sbom.txt.sha256
+          retention-days: 90
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to GHCR
+        run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker tag docker.io/my-organization/my-app:${{ github.sha }} ghcr.io/${REPO}:${{ github.sha }}
+          docker push ghcr.io/${REPO}:${{ github.sha }}
+
+      - name: Generate SHA-256 hash of image
+        run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker inspect --format='{{index .Id}}' ghcr.io/${REPO}:${{ github.sha }} > image.sha256
+          cat image.sha256
+
+      - name: Upload image hash artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-hash-${{ github.sha }}
+          path: image.sha256
+          retention-days: 90

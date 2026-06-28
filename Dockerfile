@@ -1,0 +1,3 @@
+FROM redhat/ubi8:8.10
+
+RUN cat /etc/redhat-release
