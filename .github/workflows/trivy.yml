@@ -47,12 +47,12 @@ jobs:
         with:
           scan-type: 'image'
           image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
-          format: 'cyclonedx'
-          output: 'sbom.cdx.json'
+          format: 'spdx'
+          output: 'sbom.json'
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ github.sha }}
-          path: sbom.cdx.json
+          path: sbom.json
           retention-days: 90
